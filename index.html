@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Magnetic Boy - Clean Mobile Edition</title>
+    <!-- Tailwind CSS for UI structure -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        body {
+            background-color: #05070d;
+            color: #f8fafc;
+            font-family: 'Inter', system-ui, sans-serif;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #game-wrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: 1280px;
+            max-height: 720px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #090d16;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .hud-glass {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        /* Botões translúcidos e modernos */
+        .btn-gamepad {
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            backdrop-filter: blur(6px);
+            background: rgba(15, 23, 42, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            transition: transform 0.06s ease, background 0.1s ease, border-color 0.1s ease;
+        }
+        .btn-gamepad:active, .btn-gamepad.pressed {
+            transform: scale(0.90);
+            background: rgba(30, 41, 59, 0.6);
+        }
+        #btn-attract.pressed {
+            background: rgba(6, 182, 212, 0.4) !important;
+            border-color: rgba(34, 211, 238, 0.8);
+        }
+        #btn-repel.pressed {
+            background: rgba(244, 63, 94, 0.4) !important;
+            border-color: rgba(244, 63, 94, 0.8);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top HUD Overlay -->
+    <div id="hud" class="absolute top-3 left-3 right-3 max-w-5xl mx-auto flex justify-between items-center pointer-events-none z-30">
+        <div class="flex items-center space-x-2.5">
+            <div class="hud-glass px-3 py-1.5 rounded-2xl flex items-center space-x-2.5 shadow-xl">
+                <div id="polarity-indicator" class="w-4 h-4 rounded-full bg-slate-500 shadow-md transition-colors duration-200"></div>
+                <div>
+                    <span id="polarity-text" class="text-[10px] font-black tracking-wider text-slate-300">NEUTRAL</span>
+                </div>
+            </div>
+            
+            <div class="hud-glass px-3 py-1.5 rounded-2xl shadow-xl w-28 md:w-36">
+                <div class="flex justify-between items-center mb-0.5">
+                    <span class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">ENERGY</span>
+                    <span id="energy-text" class="text-[9px] font-bold text-cyan-400">100%</span>
+                </div>
+                <div class="w-full bg-slate-900/80 h-1.5 rounded-full overflow-hidden border border-slate-700/40">
+                    <div id="energy-bar" class="bg-gradient-to-r from-cyan-400 to-indigo-500 h-full rounded-full w-full"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+            <div class="hud-glass px-3.5 py-1.5 rounded-2xl flex items-center space-x-3 shadow-xl">
+                <div>
+                    <span class="text-[9px] text-slate-400 block font-bold uppercase">GEARS</span>
+                    <span id="gears-text" class="text-xs md:text-sm font-black text-amber-400">0 / 0</span>
+                </div>
+                <div class="h-5 w-px bg-slate-700/60"></div>
+                <div>
+                    <span class="text-[9px] text-slate-400 block font-bold uppercase">STAGE</span>
+                    <span id="stage-text" class="text-xs md:text-sm font-black text-emerald-400">1 / ∞</span>
+                </div>
+            </div>
+
+            <button id="mute-btn" class="pointer-events-auto hud-glass p-2.5 rounded-2xl text-slate-300 hover:text-white cursor-pointer shadow-xl">
+                <svg id="sound-icon-on" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M11 5L6 9H2v6h4l5 4V5z"></path></svg>
+                <svg id="sound-icon-off" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path></svg>
+            </button>
+
+            <button id="restart-stage-btn" class="pointer-events-auto hud-glass p-2.5 rounded-2xl text-slate-300 hover:text-white cursor-pointer shadow-xl" title="Reiniciar">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Game Canvas Wrapper -->
+    <div id="game-wrapper">
+        <canvas id="gameCanvas" width="1280" height="720"></canvas>
+
+        <!-- Overlay Menu / Game Over -->
+        <div id="overlay" class="absolute inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-40">
+            <div class="px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 rounded-full text-cyan-400 text-[10px] md:text-xs font-bold uppercase tracking-widest mb-3">
+                CLEAN MOBILE EDITION
+            </div>
+            <h1 id="overlay-title" class="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-400 to-rose-500 mb-3 tracking-tight">
+                MAGNETIC BOY
+            </h1>
+            <div id="overlay-body" class="text-slate-300 max-w-md mb-6 text-xs md:text-sm leading-relaxed space-y-2">
+                <p>Botões translúcidos com o salto posicionado abaixo para máxima ergonomia no telemóvel!</p>
+            </div>
+            <button id="action-btn" class="px-8 py-4 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 font-black text-base rounded-2xl shadow-2xl cursor-pointer tracking-wide border border-cyan-300/30">
+                JOGAR AGORA
+            </button>
+        </div>
+
+        <!-- 🕹️ CONTROLES TÁTEIS: ESQUERDA (MOVIMENTO) | DIREITA (MÃOS / PULO EMBAIXO) -->
+        <div class="absolute bottom-5 left-5 flex space-x-3 pointer-events-auto z-25">
+            <button id="btn-left" class="btn-gamepad w-16 h-16 rounded-2xl flex items-center justify-center text-2xl text-slate-200 shadow-lg">◀</button>
+            <button id="btn-right" class="btn-gamepad w-16 h-16 rounded-2xl flex items-center justify-center text-2xl text-slate-200 shadow-lg">▶</button>
+        </div>
+
+        <!-- Lado Direito: Atrair/Repelir em cima, Pulo embaixo -->
+        <div class="absolute bottom-5 right-5 flex flex-col items-end space-y-2.5 pointer-events-auto z-25">
+            <!-- Estados Magnéticos Lado a Lado no topo -->
+            <div class="flex space-x-2.5">
+                <button id="btn-attract" class="btn-gamepad w-16 h-16 rounded-2xl flex flex-col items-center justify-center text-cyan-300 shadow-lg">
+                    <span class="text-xs font-black">🧲+</span>
+                    <span class="text-[9px] font-bold">ATRAIR</span>
+                </button>
+                <button id="btn-repel" class="btn-gamepad w-16 h-16 rounded-2xl flex flex-col items-center justify-center text-rose-300 shadow-lg">
+                    <span class="text-xs font-black">🧲-</span>
+                    <span class="text-[9px] font-bold">REPELIR</span>
+                </button>
+            </div>
+
+            <!-- Botão de Pulo (Por baixo dos imãs) -->
+            <button id="btn-jump" class="btn-gamepad w-35 h-14 bg-indigo-950/40 border-indigo-400/40 rounded-2xl flex items-center justify-center text-white font-black text-sm shadow-lg tracking-wider w-full">
+                ▲ PULAR
+            </button>
+        </div>
+    </div>
+
+    <!-- Notification Banner -->
+    <div id="msg-box" class="fixed top-20 bg-slate-900/95 border border-slate-700 px-5 py-2.5 rounded-2xl shadow-2xl hidden z-50 pointer-events-none transform -translate-y-2">
+        <p id="msg-text" class="text-xs font-semibold text-slate-200"></p>
+    </div>
+
+    <script>
+        // --- SYNTHESIZER AUDIO ---
+        class SoundFX {
+            constructor() { this.ctx = null; this.muted = false; }
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+            }
+            playTone(freq, type, duration, vol = 0.1) {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+                    osc.connect(gain); gain.connect(this.ctx.destination);
+                    osc.start(); osc.stop(this.ctx.currentTime + duration);
+                } catch(e) {}
+            }
+            jump() { this.playTone(180, 'sine', 0.15, 0.1); }
+            attractHum() { this.playTone(320, 'sine', 0.08, 0.04); }
+            repelPulse() { this.playTone(120, 'triangle', 0.12, 0.12); }
+            gearCollect() {
+                this.playTone(600, 'sine', 0.08, 0.1);
+                setTimeout(() => this.playTone(900, 'sine', 0.12, 0.1), 60);
+            }
+            switchClick() { this.playTone(200, 'square', 0.05, 0.08); }
+            stageClear() { [300, 400, 500, 700].forEach((f, i) => setTimeout(() => this.playTone(f, 'sine', 0.15, 0.1), i * 80)); }
+            fail() {
+                this.playTone(180, 'sawtooth', 0.2, 0.12);
+                setTimeout(() => this.playTone(130, 'sawtooth', 0.25, 0.12), 150);
+            }
+        }
+
+        const audio = new SoundFX();
+        document.getElementById('mute-btn').addEventListener('click', () => {
+            audio.init(); audio.muted = !audio.muted;
+            document.getElementById('sound-icon-on').classList.toggle('hidden', audio.muted);
+            document.getElementById('sound-icon-off').classList.toggle('hidden', !audio.muted);
+        });
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const V_WIDTH = 1280; const V_HEIGHT = 720;
+
+        let gameState = 'MENU';
+        let currentLevelIndex = 0;
+        let scoreGears = 0;
+        let totalGearsInLevel = 0;
+        let cameraX = 0; let cameraY = 0;
+        let screenShakeTime = 0; let screenShakeIntensity = 0;
+
+        const overlay = document.getElementById('overlay');
+        const overlayTitle = document.getElementById('overlay-title');
+        const overlayBody = document.getElementById('overlay-body');
+        const actionBtn = document.getElementById('action-btn');
+        const polarityIndicator = document.getElementById('polarity-indicator');
+        const polarityText = document.getElementById('polarity-text');
+        const energyBar = document.getElementById('energy-bar');
+        const energyText = document.getElementById('energy-text');
+        const gearsText = document.getElementById('gears-text');
+        const stageText = document.getElementById('stage-text');
+        const msgBox = document.getElementById('msg-box');
+        const msgText = document.getElementById('msg-text');
+
+        function triggerShake(duration = 0.2, intensity = 8) {
+            screenShakeTime = duration; screenShakeIntensity = intensity;
+        }
+        function showBanner(text) {
+            msgText.innerText = text; msgBox.classList.remove('hidden');
+            setTimeout(() => { msgBox.classList.add('hidden'); }, 2500);
+        }
+
+        // --- INPUTS ---
+        const keys = { left: false, right: false, up: false, attract: false, repel: false };
+
+        window.addEventListener('keydown', e => {
+            audio.init();
+            if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
+            if (e.code === 'KeyW' || e.code === 'ArrowUp' || e.code === 'Space') keys.up = true;
+            if (e.code === 'KeyZ' || e.code === 'Digit1') keys.attract = true;
+            if (e.code === 'KeyX' || e.code === 'Digit2') keys.repel = true;
+        });
+
+        window.addEventListener('keyup', e => {
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
+            if (e.code === 'KeyW' || e.code === 'ArrowUp' || e.code === 'Space') keys.up = false;
+            if (e.code === 'KeyZ' || e.code === 'Digit1') keys.attract = false;
+            if (e.code === 'KeyX' || e.code === 'Digit2') keys.repel = false;
+        });
+
+        const bindTouchBtn = (id, keyName) => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            const handleStart = (e) => {
+                e.preventDefault(); audio.init(); btn.classList.add('pressed');
+                keys[keyName] = true;
+            };
+            const handleEnd = (e) => {
+                e.preventDefault(); btn.classList.remove('pressed');
+                keys[keyName] = false;
+            };
+            btn.addEventListener('touchstart', handleStart, {passive: false});
+            btn.addEventListener('touchend', handleEnd, {passive: false});
+            btn.addEventListener('mousedown', handleStart);
+            btn.addEventListener('mouseup', handleEnd);
+            btn.addEventListener('mouseleave', () => { btn.classList.remove('pressed'); keys[keyName] = false; });
+        };
+        bindTouchBtn('btn-left', 'left');
+        bindTouchBtn('btn-right', 'right');
+        bindTouchBtn('btn-jump', 'up');
+        bindTouchBtn('btn-attract', 'attract');
+        bindTouchBtn('btn-repel', 'repel');
+
+        document.getElementById('restart-stage-btn').addEventListener('click', () => {
+            if (gameState === 'PLAYING') loadLevel(currentLevelIndex);
+        });
+
+        // --- PARTICLES ---
+        const particles = [];
+        function createParticle(x, y, color, vx, vy, radius = 4, life = 0.4) {
+            particles.push({ x, y, color, vx, vy, radius, life, maxLife: life });
+        }
+        function updateParticles(dt) {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx * dt * 60; p.y += p.vy * dt * 60; p.life -= dt;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+        function drawParticles() {
+            particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+                ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x - cameraX, p.y - cameraY, p.radius, 0, Math.PI * 2); ctx.fill();
+                ctx.restore();
+            });
+        }
+
+        // --- PLAYER ---
+        const player = {
+            x: 100, y: 300, width: 32, height: 44, vx: 0, vy: 0,
+            speed: 5.5, jumpForce: -12.5, gravity: 0.50,
+            grounded: false, ceilingClinging: false, polarity: 'NEUTRAL',
+            energy: 100, maxEnergy: 100, facing: 1,
+            reset(x, y) {
+                this.x = x; this.y = y; this.vx = 0; this.vy = 0;
+                this.grounded = false; this.ceilingClinging = false;
+                this.polarity = 'NEUTRAL'; this.energy = this.maxEnergy;
+            }
+        };
+
+        let activeLevel = null;
+
+        class MetalCrate {
+            constructor(x, y, w = 48, h = 48) {
+                this.x = x; this.y = y; this.width = w; this.height = h;
+                this.vx = 0; this.vy = 0; this.grounded = false;
+            }
+            update(dt) {
+                this.vy += player.gravity;
+                this.x += this.vx; this.y += this.vy;
+                this.vx *= 0.85;
+                if (this.x < 0) { this.x = 0; this.vx = 0; }
+                if (this.x + this.width > activeLevel.width) { this.x = activeLevel.width - this.width; this.vx = 0; }
+                this.grounded = false;
+                activeLevel.platforms.forEach(p => {
+                    if (checkRectCollision(this, p)) {
+                        if (this.vy > 0 && this.y + this.height - this.vy <= p.y + 10) {
+                            this.y = p.y - this.height; this.vy = 0; this.grounded = true;
+                        } else if (this.vy < 0 && this.y - this.vy >= p.y + p.height - 10) {
+                            this.y = p.y + p.height; this.vy = 0;
+                        } else if (this.vx > 0) { this.x = p.x - this.width; this.vx = 0; }
+                        else if (this.vx < 0) { this.x = p.x + p.width; this.vx = 0; }
+                    }
+                });
+            }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x - cameraX, this.y - cameraY);
+                ctx.fillStyle = '#475569'; ctx.fillRect(0, 0, this.width, this.height);
+                ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 3; ctx.strokeRect(0, 0, this.width, this.height);
+                ctx.restore();
+            }
+        }
+
+        class PressureSwitch {
+            constructor(x, y, w = 50, doorId) {
+                this.x = x; this.y = y; this.width = w; this.height = 12;
+                this.pressed = false; this.doorId = doorId;
+            }
+            update() {
+                let wasPressed = this.pressed;
+                this.pressed = false;
+                const checkArea = { x: this.x, y: this.y - 6, width: this.width, height: 18 };
+                if (checkRectCollision(player, checkArea)) this.pressed = true;
+                activeLevel.crates.forEach(c => { if (checkRectCollision(c, checkArea)) this.pressed = true; });
+                if (this.pressed && !wasPressed) audio.switchClick();
+                activeLevel.doors.forEach(d => { if (d.id === this.doorId) d.open = this.pressed; });
+            }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x - cameraX, this.y - cameraY);
+                ctx.fillStyle = this.pressed ? '#10b981' : '#f43f5e';
+                ctx.fillRect(0, this.pressed ? 6 : 0, this.width, this.pressed ? 6 : 12);
+                ctx.strokeStyle = '#0284c7'; ctx.lineWidth = 2; ctx.strokeRect(0, this.pressed ? 6 : 0, this.width, this.pressed ? 6 : 12);
+                ctx.restore();
+            }
+        }
+
+        const levels = [
+            {
+                name: "Training Facility",
+                width: 2400, height: 720,
+                spawn: { x: 100, y: 500 },
+                goal: { x: 2200, y: 480, width: 50, height: 80 },
+                hints: [{ x: 200, y: 440, text: "O botão de pulo está agora logo abaixo dos imãs!" }],
+                platforms: [
+                    { x: 0, y: 580, width: 450, height: 140, type: 'normal' },
+                    { x: 400, y: 360, width: 500, height: 40, type: 'metal_ceiling' },
+                    { x: 450, y: 580, width: 100, height: 140, type: 'normal' },
+                    { x: 800, y: 580, width: 200, height: 140, type: 'normal' },
+                    { x: 1020, y: 580, width: 250, height: 140, type: 'metal_floor' },
+                    { x: 1320, y: 380, width: 200, height: 340, type: 'normal' },
+                    { x: 1750, y: 560, width: 650, height: 160, type: 'normal' }
+                ],
+                nodes: [{ x: 1620, y: 320, radius: 28 }],
+                hazards: [{ x: 550, y: 690, width: 250, height: 30, polarity: 'ANY' }],
+                crates: [], switches: [], doors: [],
+                gears: [{ x: 650, y: 440, collected: false }, { x: 1145, y: 280, collected: false }]
+            }
+        ];
+
+        // --- GERADOR PROCEDURAL INFINITO ---
+        function generateProceduralLevel(stageNum) {
+            const width = Math.min(2000 + stageNum * 100, 4200);
+            let platforms = [{ x: 0, y: 580, width: 400, height: 140, type: 'normal' }];
+            let nodes = []; let hazards = []; let crates = []; let switches = []; let doors = []; let gears = [];
+            const modules = ['ceiling_magnet', 'floor_repel', 'node_slingshot', 'crate_puzzle'];
+            let currentX = 450; let goalX = width - 200;
+
+            while (currentX < goalX - 250) {
+                let type = modules[Math.floor(Math.random() * modules.length)];
+                if (type === 'ceiling_magnet') {
+                    let pWidth = 300 + Math.random() * 180;
+                    platforms.push({ x: currentX, y: 330, width: pWidth, height: 35, type: 'metal_ceiling' });
+                    platforms.push({ x: currentX, y: 580, width: pWidth, height: 140, type: 'normal' });
+                    gears.push({ x: currentX + pWidth / 2, y: 250, collected: false });
+                    currentX += pWidth + 40;
+                } else if (type === 'floor_repel') {
+                    let pWidth = 240 + Math.random() * 140;
+                    platforms.push({ x: currentX, y: 580, width: pWidth, height: 140, type: 'metal_floor' });
+                    platforms.push({ x: currentX + 30, y: 260, width: 160, height: 25, type: 'normal' });
+                    gears.push({ x: currentX + 110, y: 190, collected: false });
+                    currentX += pWidth + 40;
+                } else if (type === 'node_slingshot') {
+                    platforms.push({ x: currentX, y: 600, width: 200, height: 120, type: 'normal' });
+                    nodes.push({ x: currentX + 100, y: 310, radius: 26 });
+                    hazards.push({ x: currentX, y: 690, width: 200, height: 30, polarity: 'ANY' });
+                    gears.push({ x: currentX + 140, y: 160, collected: false });
+                    currentX += 300;
+                } else if (type === 'crate_puzzle') {
+                    platforms.push({ x: currentX, y: 580, width: 380, height: 140, type: 'normal' });
+                    crates.push(new MetalCrate(currentX + 50, 500, 48, 48));
+                    let doorId = `d_${stageNum}_${currentX}`;
+                    switches.push(new PressureSwitch(currentX + 180, 568, 45, doorId));
+                    doors.push({ id: doorId, x: currentX + 320, y: 380, width: 25, height: 200, open: false });
+                    gears.push({ x: currentX + 340, y: 320, collected: false });
+                    currentX += 420;
+                }
+            }
+            platforms.push({ x: goalX - 100, y: 550, width: 300, height: 170, type: 'normal' });
+            return {
+                name: `Setor Procedural #${stageNum}`, width: width, height: 720,
+                spawn: { x: 80, y: 500 }, goal: { x: goalX + 50, y: 470, width: 50, height: 80 },
+                hints: [], platforms, nodes, hazards, crates, switches, doors, gears
+            };
+        }
+
+        function loadLevel(idx) {
+            currentLevelIndex = idx;
+            if (idx < levels.length) {
+                const tpl = levels[idx];
+                activeLevel = {
+                    name: tpl.name, width: tpl.width, height: tpl.height,
+                    spawn: { ...tpl.spawn }, goal: { ...tpl.goal },
+                    hints: tpl.hints ? tpl.hints.map(h => ({ ...h })) : [],
+                    platforms: tpl.platforms.map(p => ({ ...p })),
+                    nodes: tpl.nodes.map(n => ({ ...n })),
+                    hazards: tpl.hazards.map(h => ({ ...h })),
+                    crates: tpl.crates.map(c => new MetalCrate(c.x, c.y, c.width, c.height)),
+                    switches: tpl.switches.map(s => new PressureSwitch(s.x, s.y, s.width, s.doorId)),
+                    doors: tpl.doors.map(d => ({ ...d })),
+                    gears: tpl.gears.map(g => ({ ...g }))
+                };
+            } else {
+                activeLevel = generateProceduralLevel(idx + 1);
+            }
+            scoreGears = 0; totalGearsInLevel = activeLevel.gears.length;
+            player.reset(activeLevel.spawn.x, activeLevel.spawn.y);
+            stageText.innerText = `${currentLevelIndex + 1} / ∞`;
+            gearsText.innerText = `0 / ${totalGearsInLevel}`;
+            gameState = 'PLAYING';
+            overlay.classList.add('opacity-0', 'pointer-events-none');
+            showBanner(`ESTÁGIO ${currentLevelIndex + 1}`);
+        }
+
+        function checkRectCollision(r1, r2) {
+            return r1.x < r2.x + r2.width && r1.x + r1.width > r2.x &&
+                   r1.y < r2.y + r2.height && r1.y + r1.height > r2.y;
+        }
+
+        function update(dt) {
+            if (gameState !== 'PLAYING') return;
+            if (screenShakeTime > 0) screenShakeTime -= dt;
+
+            if (keys.attract && player.energy > 0) {
+                player.polarity = 'ATTRACT'; player.energy = Math.max(0, player.energy - dt * 20); audio.attractHum();
+            } else if (keys.repel && player.energy > 0) {
+                player.polarity = 'REPEL'; player.energy = Math.max(0, player.energy - dt * 25);
+            } else {
+                player.polarity = 'NEUTRAL'; player.energy = Math.min(player.maxEnergy, player.energy + dt * 50);
+            }
+
+            energyBar.style.width = `${(player.energy / player.maxEnergy) * 100}%`;
+            energyText.innerText = `${Math.round(player.energy)}%`;
+
+            if (player.polarity === 'ATTRACT') {
+                polarityIndicator.className = 'w-4 h-4 rounded-full bg-cyan-400 shadow-[0_0_10px_#22d3ee] transition-colors';
+                polarityText.innerText = 'ATTRACT'; polarityText.className = 'text-[10px] md:text-xs font-black text-cyan-400';
+            } else if (player.polarity === 'REPEL') {
+                polarityIndicator.className = 'w-4 h-4 rounded-full bg-rose-500 shadow-[0_0_10px_#f43f5e] transition-colors';
+                polarityText.innerText = 'REPEL'; polarityText.className = 'text-[10px] md:text-xs font-black text-rose-500';
+            } else {
+                polarityIndicator.className = 'w-4 h-4 rounded-full bg-slate-500 transition-colors';
+                polarityText.innerText = 'NEUTRAL'; polarityText.className = 'text-[10px] md:text-xs font-black text-slate-400';
+            }
+
+            let moveDir = 0;
+            if (keys.left) moveDir = -1;
+            if (keys.right) moveDir = 1;
+            player.vx = moveDir * player.speed;
+            if (moveDir !== 0) player.facing = moveDir;
+
+            player.vy += player.gravity;
+            if (player.polarity === 'ATTRACT') player.vy -= 0.45;
+
+            if (keys.up && (player.grounded || player.ceilingClinging)) {
+                if (player.ceilingClinging) { player.vy = 5; }
+                else {
+                    player.vy = player.jumpForce; audio.jump();
+                    for (let i = 0; i < 5; i++) createParticle(player.x + player.width/2, player.y + player.height, '#94a3b8', (Math.random()-0.5)*3, Math.random()*2);
+                }
+                player.grounded = false; player.ceilingClinging = false;
+            }
+
+            player.ceilingClinging = false;
+
+            activeLevel.nodes.forEach(node => {
+                const dx = node.x - (player.x + player.width / 2);
+                const dy = node.y - (player.y + player.height / 2);
+                const dist = Math.hypot(dx, dy);
+                if (dist < 380) {
+                    const force = (1 - dist / 380) * 26;
+                    const nx = dx / dist; const ny = dy / dist;
+                    if (player.polarity === 'ATTRACT') {
+                        player.vx += nx * force * 1.6; player.vy += ny * force * 1.6 - 0.4;
+                    } else if (player.polarity === 'REPEL') {
+                        player.vx -= nx * force * 1.8; player.vy -= ny * force * 1.8;
+                        triggerShake(0.1, 4); audio.repelPulse();
+                    }
+                }
+            });
+
+            activeLevel.crates.forEach(crate => {
+                const dx = (crate.x + crate.width / 2) - (player.x + player.width / 2);
+                const dy = (crate.y + crate.height / 2) - (player.y + player.height / 2);
+                const dist = Math.hypot(dx, dy);
+                if (dist < 260) {
+                    const force = (1 - dist / 260) * 14;
+                    const nx = dx / dist;
+                    if (player.polarity === 'ATTRACT') crate.vx -= nx * force * 0.6;
+                    else if (player.polarity === 'REPEL') crate.vx += nx * force * 1.0;
+                }
+            });
+
+            player.x += player.vx;
+            activeLevel.platforms.forEach(p => {
+                if (checkRectCollision(player, p)) {
+                    if (player.vx > 0) player.x = p.x - player.width;
+                    if (player.vx < 0) player.x = p.x + p.width;
+                }
+            });
+            activeLevel.doors.forEach(d => {
+                if (!d.open && checkRectCollision(player, d)) {
+                    if (player.vx > 0) player.x = d.x - player.width;
+                    if (player.vx < 0) player.x = d.x + d.width;
+                }
+            });
+
+            player.y += player.vy;
+            player.grounded = false;
+
+            activeLevel.platforms.forEach(p => {
+                if (checkRectCollision(player, p)) {
+                    if (player.vy > 0) {
+                        player.y = p.y - player.height; player.vy = 0; player.grounded = true;
+                        if (p.type === 'metal_floor' && player.polarity === 'REPEL') {
+                            player.vy = player.jumpForce * 1.65; player.grounded = false;
+                            triggerShake(0.15, 7); audio.repelPulse();
+                        }
+                    } else if (player.vy < 0) {
+                        player.y = p.y + p.height; player.vy = 0;
+                        if (p.type === 'metal_ceiling' && player.polarity === 'ATTRACT') {
+                            player.ceilingClinging = true; player.vy = 0;
+                        }
+                    }
+                }
+            });
+
+            activeLevel.crates.forEach(c => {
+                if (player.vy > 0 &&
+                    player.x + player.width > c.x && player.x < c.x + c.width &&
+                    player.y + player.height >= c.y && player.y + player.height <= c.y + 16) {
+                    player.y = c.y - player.height; player.vy = 0; player.grounded = true;
+                }
+            });
+
+            if (player.polarity === 'ATTRACT') {
+                activeLevel.platforms.forEach(p => {
+                    if (p.type === 'metal_ceiling') {
+                        if (player.x + player.width > p.x && player.x < p.x + p.width) {
+                            const distToCeiling = player.y - (p.y + p.height);
+                            if (distToCeiling > 0 && distToCeiling < 250) {
+                                player.vy = -7.5;
+                                if (distToCeiling <= 12) { player.y = p.y + p.height; player.vy = 0; player.ceilingClinging = true; }
+                            }
+                        }
+                    }
+                });
+            }
+
+            if (player.x < 0) { player.x = 0; player.vx = 0; }
+            if (player.x + player.width > activeLevel.width) { player.x = activeLevel.width - player.width; player.vx = 0; }
+            if (player.y < 0) { player.y = 0; player.vy = 0; }
+
+            activeLevel.crates.forEach(c => c.update(dt));
+            activeLevel.switches.forEach(s => s.update());
+
+            activeLevel.hazards.forEach(h => {
+                if (checkRectCollision(player, h)) {
+                    if (h.polarity === 'ANY' || h.polarity === player.polarity) triggerGameOver();
+                }
+            });
+            if (player.y > activeLevel.height + 120) triggerGameOver();
+
+            activeLevel.gears.forEach(g => {
+                if (!g.collected) {
+                    const gearBox = { x: g.x - 14, y: g.y - 14, width: 28, height: 28 };
+                    if (checkRectCollision(player, gearBox)) {
+                        g.collected = true; scoreGears++;
+                        gearsText.innerText = `${scoreGears} / ${totalGearsInLevel}`;
+                        audio.gearCollect();
+                    }
+                }
+            });
+
+            if (checkRectCollision(player, activeLevel.goal)) {
+                audio.stageClear(); loadLevel(currentLevelIndex + 1);
+            }
+
+            const targetCamX = player.x + player.width / 2 - V_WIDTH / 2;
+            const targetCamY = player.y + player.height / 2 - V_HEIGHT / 2;
+            cameraX += (targetCamX - cameraX) * 0.1;
+            cameraY += (targetCamY - cameraY) * 0.1;
+            cameraX = Math.max(0, Math.min(activeLevel.width - V_WIDTH, cameraX));
+            cameraY = Math.max(0, Math.min(activeLevel.height - V_HEIGHT, cameraY));
+
+            updateParticles(dt);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, V_WIDTH, V_HEIGHT);
+            if (!activeLevel) return;
+
+            ctx.save();
+            if (screenShakeTime > 0) {
+                ctx.translate((Math.random() - 0.5) * screenShakeIntensity, (Math.random() - 0.5) * screenShakeIntensity);
+            }
+
+            ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
+            const gridSpacing = 64;
+            const startX = Math.floor(cameraX / gridSpacing) * gridSpacing;
+            const startY = Math.floor(cameraY / gridSpacing) * gridSpacing;
+            for (let x = startX; x < startX + V_WIDTH + gridSpacing; x += gridSpacing) {
+                ctx.beginPath(); ctx.moveTo(x - cameraX, 0); ctx.lineTo(x - cameraX, V_HEIGHT); ctx.stroke();
+            }
+
+            if (activeLevel.hints) {
+                activeLevel.hints.forEach(hint => {
+                    ctx.save();
+                    const rx = hint.x - cameraX; const ry = hint.y - cameraY;
+                    ctx.font = 'bold 14px Inter, sans-serif';
+                    const textWidth = ctx.measureText(hint.text).width;
+                    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)'; ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.roundRect(rx - textWidth/2 - 12, ry - 16, textWidth + 24, 32, 10);
+                    ctx.fill(); ctx.stroke();
+                    ctx.fillStyle = '#f8fafc'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText(hint.text, rx, ry);
+                    ctx.restore();
+                });
+            }
+
+            activeLevel.platforms.forEach(p => {
+                ctx.save(); ctx.translate(p.x - cameraX, p.y - cameraY);
+                if (p.type === 'normal') { ctx.fillStyle = '#1e293b'; ctx.strokeStyle = '#334155'; }
+                else if (p.type === 'metal_floor') { ctx.fillStyle = '#881337'; ctx.strokeStyle = '#f43f5e'; }
+                else if (p.type === 'metal_ceiling') { ctx.fillStyle = '#164e63'; ctx.strokeStyle = '#22d3ee'; }
+                ctx.fillRect(0, 0, p.width, p.height); ctx.lineWidth = 3; ctx.strokeRect(0, 0, p.width, p.height);
+                ctx.restore();
+            });
+
+            activeLevel.doors.forEach(d => {
+                if (d.open) return;
+                ctx.save(); ctx.translate(d.x - cameraX, d.y - cameraY);
+                ctx.fillStyle = '#0284c7'; ctx.fillRect(0, 0, d.width, d.height);
+                ctx.restore();
+            });
+
+            activeLevel.switches.forEach(s => s.draw());
+            activeLevel.crates.forEach(c => c.draw());
+
+            activeLevel.nodes.forEach(n => {
+                ctx.save(); ctx.translate(n.x - cameraX, n.y - cameraY);
+                ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(0, 0, n.radius, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 4; ctx.stroke();
+                ctx.fillStyle = '#22d3ee'; ctx.beginPath(); ctx.arc(0, 0, n.radius * 0.4, 0, Math.PI * 2); ctx.fill();
+                ctx.restore();
+            });
+
+            activeLevel.hazards.forEach(h => {
+                ctx.save(); ctx.translate(h.x - cameraX, h.y - cameraY);
+                if (h.polarity === 'ANY') {
+                    ctx.fillStyle = '#e11d48'; const spikeW = 15; const count = Math.floor(h.width / spikeW);
+                    ctx.beginPath();
+                    for (let i = 0; i < count; i++) {
+                        ctx.moveTo(i * spikeW, h.height); ctx.lineTo(i * spikeW + spikeW/2, 0); ctx.lineTo((i + 1) * spikeW, h.height);
+                    }
+                    ctx.fill();
+                }
+                ctx.restore();
+            });
+
+            activeLevel.gears.forEach(g => {
+                if (!g.collected) {
+                    ctx.save(); ctx.translate(g.x - cameraX, g.y - cameraY);
+                    ctx.fillStyle = '#fbbf24'; ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.fill();
+                    ctx.restore();
+                }
+            });
+
+            const goal = activeLevel.goal;
+            ctx.save(); ctx.translate(goal.x - cameraX, goal.y - cameraY);
+            ctx.fillStyle = '#10b981'; ctx.fillRect(0, 0, goal.width, goal.height);
+            ctx.restore();
+
+            ctx.save(); ctx.translate(player.x - cameraX, player.y - cameraY);
+            ctx.fillStyle = player.polarity === 'ATTRACT' ? '#06b6d4' : (player.polarity === 'REPEL' ? '#f43f5e' : '#3b82f6');
+            ctx.fillRect(0, 0, player.width, player.height);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(player.facing > 0 ? player.width - 12 : 4, 10, 8, 8);
+            ctx.restore();
+
+            drawParticles();
+            ctx.restore();
+        }
+
+        let lastTime = performance.now();
+        function gameLoop(now) {
+            const dt = Math.min((now - lastTime) / 1000, 0.05);
+            lastTime = now;
+            update(dt);
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function triggerGameOver() {
+            gameState = 'GAMEOVER'; audio.fail();
+            overlayTitle.innerText = 'MISSION FAILED';
+            overlayBody.innerHTML = '<p class="text-rose-400 font-bold">Core destabilized!</p>';
+            actionBtn.innerText = 'TENTAR NOVAMENTE';
+            overlay.classList.remove('opacity-0', 'pointer-events-none');
+        }
+
+        actionBtn.addEventListener('click', () => {
+            if (gameState === 'MENU' || gameState === 'VICTORY') loadLevel(0);
+            else if (gameState === 'GAMEOVER') loadLevel(currentLevelIndex);
+        });
+
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
